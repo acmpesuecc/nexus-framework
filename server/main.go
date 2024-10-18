@@ -20,6 +20,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
+func executeCommand(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
 func main() {
 	absPath, err := filepath.Abs("../.env")
 	if err != nil {

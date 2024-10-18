@@ -112,3 +112,51 @@ func TestUnauthorizedLogin(t *testing.T) {
 		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, resp.StatusCode)
 	}
 }
+
+// This test checks for a valid response with an empty payload
+func TestExecuteCommandInvalidPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(executeCommand))
+	defer server.Close()
+
+	req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer([]byte{}))
+	if err != nil {
+		t.Fatalf("Could not create request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Could not send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, resp.StatusCode)
+	}
+}
+
+// This test checks for a valid response when the command is missing
+func TestExecuteCommandMissingCommand(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(executeCommand))
+	defer server.Close()
+
+	reqBody, _ := json.Marshal(map[string]string{
+		"ListenerID": "listener_123",
+	})
+
+	req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(reqBody))
+	if err != nil {
+		t.Fatalf("Could not create request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Could not send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, resp.StatusCode)
+	}
+}

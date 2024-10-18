@@ -11,26 +11,18 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/joho/godotenv"
 )
 
-type User struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+func executeCommand(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
 }
-
-var (
-	users    []User
-	usersMtx sync.Mutex
-	apiKey   string
-)
 
 func main() {
 	absPath, err := filepath.Abs("../.env")
@@ -45,7 +37,7 @@ func main() {
 	fmt.Println("API Key:", apiKey)
 	go startServer()
 
-	fmt.Println(" -> Welcome to the Nexus-Framework Setup. Use 'r' to register a new user or 'q' to quit.\n")
+	fmt.Println(" -> Welcome to the Nexus-Framework Setup. Use 'r' to register a new user or 'q' to quit.")
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		fmt.Print(" ┬─[Nexus-Framework]\n ╰─> ")
@@ -62,23 +54,55 @@ func main() {
 			fmt.Println("Exiting...")
 			os.Exit(0)
 		default:
-			fmt.Println("\nInvalid input. Press 'r' to register a new user or 'q' to quit.\n")
+			fmt.Println("Invalid input. Press 'r' to register a new user or 'q' to quit.")
 		}
 	}
 }
 
-func spawnListener() {
-	lport := os.Getenv("LISTENER_PORT")
-	host := os.Getenv("HOST")
-	listener := ("http://" + host + ":" + lport)
-	addl := []byte(listener)
-	net.Listen("tcp", listener)
-	err := ioutil.WriteFile("listeners.txt", addl, 0o644)
+func spawnListener() error {
+	lhost := os.Getenv("LHOST")
+	lport := os.Getenv("LPORT")
+
+	newListener := Listener{Host: lhost, Port: parsePort(lport)}
+
+	listeners.ActiveListeners = append(listeners.ActiveListeners, newListener)
+
+	file, err := json.MarshalIndent(listeners, "", " ")
 	if err != nil {
-		fmt.Println("Error writing to file:", err)
-		return
+		return err
 	}
-	fmt.Println("Added new listener:" + listener)
+
+	return ioutil.WriteFile("listeners.json", file, 0644)
+}
+
+func listenersHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		data, err := ioutil.ReadFile("listeners.json")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
+	case "POST":
+		err := spawnListener()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+	}
+}
+
+// parsePort converts a string to an integer port number.
+func parsePort(portStr string) int {
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		// Handle the error (you could log it or return a default value)
+		return 0 // Return 0 or handle it according to your needs
+	}
+	return port
 }
 
 func startServer() {
@@ -236,5 +260,12 @@ func registerUser() {
 }
 
 type Listener struct {
-	Port int `json:"port"`
+	Port int    `json:"port"`
+	Host string `json:"host"`
 }
+
+type Listeners struct {
+	ActiveListeners []Listener `json:"listeners"`
+}
+
+var listeners Listeners
